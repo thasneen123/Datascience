@@ -1,0 +1,211 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import warnings
+
+# Step 2: Loading the Dataset
+# ------------------------------
+file_path = 'synthetic_house_prices.csv'
+data = pd.read_csv(file_path)
+
+# Display the first five rows
+print(data.head())
+
+# Summary statistics
+print(data.describe())
+
+# Check for missing values
+print(data.isnull().sum())
+
+# Info of the dataset
+print(data.info())
+
+# Check for non-numeric columns
+non_numeric_columns = data.select_dtypes(exclude=[np.number]).columns
+print(f"Non-numeric columns: {non_numeric_columns}")
+
+# If there are non-numeric columns, drop them for correlation
+if len(non_numeric_columns) > 0:
+    data_numeric = data.drop(columns=non_numeric_columns)
+else:
+    data_numeric = data
+
+# Generate the correlation matrix
+corr_matrix = data_numeric.corr()
+
+# Check for NaN values
+print(f"NaN values in correlation matrix: {corr_matrix.isnull().sum().sum()}")
+
+# Plot the heatmap
+plt.figure(figsize=(12, 8))
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', linewidths=0.5)
+plt.title('Correlation Heatmap')
+plt.show()
+
+# Pair Plot for Numerical Features
+sns.pairplot(data[['LotArea', 'GrLivArea', 'OverallQual', 'SalePrice']])
+plt.show()
+
+# Distribution of SalePrice
+plt.figure(figsize=(8, 5))
+sns.histplot(data['SalePrice'], kde=True, color='green')
+plt.title('Distribution of Sale Price')
+plt.show()
+
+# Bar Plot for Neighborhood
+plt.figure(figsize=(10, 5))
+sns.barplot(x=data['Neighborhood'].value_counts().index, y=data['Neighborhood'].value_counts().values, palette='viridis')
+plt.title('Number of Houses by Neighborhood')
+plt.xticks(rotation=45)
+plt.show()
+""
+
+# ------------------------------
+# Step 4: Data Preprocessing
+# ------------------------------
+
+# 1. Encoding categorical features
+data = pd.get_dummies(data, columns=['Neighborhood'], drop_first=True)
+
+# 2. Splitting features and target variable
+X = data.drop('SalePrice', axis=1)
+y = data['SalePrice']
+
+# 3. Train-Test Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Display shapes of training and testing data
+print(f"Training data shape: {X_train.shape}")
+print(f"Testing data shape: {X_test.shape}")
+
+# Ddefine models to train
+models = {
+    'Linear Regression': LinearRegression(),
+    'Ridge Regression': Ridge(),
+    'Lasso Regression': Lasso(),
+    'Random Forest': RandomForestRegressor(),
+    'Gradient Boosting': GradientBoostingRegressor()
+}
+
+# Train and evaluate each model
+for name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    mae = mean_absolute_error(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_test, y_pred)
+
+    print(f"{name} - MAE: {mae:.2f}, MSE: {mse:.2f}, RMSE: {rmse:.2f}, R2: {r2:.2f}")
+
+# Example: Hyperparameter tuning for Random Forest
+param_grid = {
+    'n_estimators': [50, 100, 200],
+    'max_depth': [None, 10, 20],
+    'min_samples_split': [2, 5, 10]
+}
+
+grid_search = GridSearchCV(RandomForestRegressor(), param_grid, cv=3, scoring='neg_mean_squared_error')
+grid_search.fit(X_train, y_train)
+
+print(f"Best parameters for Random Forest: {grid_search.best_params_}")
+print(f"Best cross-validation score: {grid_search.best_score_:.2f}")
+
+# Ensure grid_search is fitted before accessing the best estimator
+if grid_search.best_estimator_ is not None:
+    best_rf = grid_search.best_estimator_
+else:
+    print("Error: GridSearchCV wasn't fitted successfully.")
+
+# Train the best model (using Random Forest in this case) on the entire dataset
+best_rf.fit(X_train, y_train)
+
+# Make final predictions on the test data
+final_predictions = best_rf.predict(X_test)
+
+# Evaluate final model performance
+final_mae = mean_absolute_error(y_test, final_predictions)
+final_mse = mean_squared_error(y_test, final_predictions)
+final_rmse = np.sqrt(final_mse)
+final_r2 = r2_score(y_test, final_predictions)
+
+print(f"Final Model - MAE: {final_mae:.2f}, MSE: {final_mse:.2f}, RMSE: {final_rmse:.2f}, R2: {final_r2:.2f}")
+
+# ------------------------------
+# Step 8: Conclusion
+# ------------------------------
+# Check if final_predictions are available and valid
+if len(final_predictions) > 0:
+    final_mae = mean_absolute_error(y_test, final_predictions)
+    final_mse = mean_squared_error(y_test, final_predictions)
+    final_rmse = np.sqrt(final_mse)
+    final_r2 = r2_score(y_test, final_predictions)
+
+    # Display final performance metrics
+    print(f"Final Model - MAE: {final_mae:.2f}, MSE: {final_mse:.2f}, RMSE: {final_rmse:.2f}, R2: {final_r2:.2f}")
+else:
+    print("Error: Final predictions are empty or not available.")
+
+# Optionally, save the final model
+import joblib
+try:
+    joblib.dump(best_rf, 'house_price_forecasting_model.pkl')
+    print("Model saved as 'house_price_forecasting_model.pkl'")
+except Exception as e:
+    print(f"Error saving model: {e}")
+
+# Step 9: Model Comparison & Reporting
+# ------------------------------
+
+# Store model names and their corresponding evaluation metrics
+model_comparison = []
+
+# Train and evaluate each model
+for name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    # Compute performance metrics
+    mae = mean_absolute_error(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_test, y_pred)
+
+    # Store the metrics in a list
+    model_comparison.append({
+        'Model': name,
+        'MAE': mae,
+        'MSE': mse,
+        'RMSE': rmse,
+        'R2': r2
+    })
+
+# Convert the list into a DataFrame for easier visualization
+comparison_df = pd.DataFrame(model_comparison)
+
+# Sort models by R2 score for better readability
+comparison_df = comparison_df.sort_values(by='R2', ascending=False)
+
+# Display the model comparison table
+print("Model Comparison Report:")
+print(comparison_df)
+
+# Optionally, visualize model performance using a bar plot for R2 score
+plt.figure(figsize=(10, 5))
+sns.barplot(x='R2', y='Model', data=comparison_df, palette='viridis')
+plt.title('Model Comparison (R2 Score)')
+plt.show()
+
+
+# Example: Saving Model Comparison to CSV
+comparison_df.to_csv('model_comparison.csv', index=False)
+
+# Saving the best model (e.g., Random Forest)
+import joblib
+joblib.dump(best_rf, 'house_price_forecasting_model.pkl')
+
